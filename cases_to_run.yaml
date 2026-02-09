@@ -8,4 +8,5 @@ case_folders:
   #- "Bucker"
   #- "Wing_0_deg"
   #- cube1m
-  - ball1m
+  #- ball1m
+  - multi_stl_test
