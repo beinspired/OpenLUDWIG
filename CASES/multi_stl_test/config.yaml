@@ -1,36 +1,38 @@
 # ==============================================================================
-# TEST CASE: Multi-STL with Rotation
+# TEST CASE: Multi-STL with Dynamic Rotation
 # ==============================================================================
 #
 # This case tests:
 #   1. Loading two different STL files (cube + sphere)
-#   2. Static translation (sphere shifted +2m in Y)
-#   3. Dynamic rotation (sphere rotating around Z-axis at 5 rad/s)
-#   4. Periodic re-voxelization every 20 steps
+#   2. Dynamic rotation: the CUBE rotates around Z-axis at 2 rad/s
+#      (cube has corners → rotation is clearly visible in VTK output)
+#   3. Static sphere as reference body
+#   4. Re-voxelization every 10 steps updates obstacle + Bouzidi
 #
-# The cube is static at the origin.
-# The sphere is translated in Y and rotates around its own center.
+# Open the VTK outputs (step 50 vs 100) in ParaView to verify the
+# cube has rotated between frames.
 #
 # Low resolution + few steps for quick verification.
 # ==============================================================================
 
 basic:
   geometries:
-    # Part 1: Static cube at the origin
+    # Part 1: Cube rotating around Z-axis (clearly visible due to corners)
     - stl_file: "cube1m.stl"
       stl_scale: 1.0
-
-    # Part 2: Sphere translated +2m in Y, rotating around Z-axis
-    - stl_file: "ball1m.stl"
-      stl_scale: 0.5
-      translation: [0.0, 2.0, 0.0]
       rotation:
-        axis: [0.0, 0.0, 1.0]
-        angle: 0.0
-        angular_velocity: 5.0
-        center: [0.0, 0.0, 0.0]
+        axis: [0.0, 0.0, 1.0]       # Z-axis
+        angle: 0.0                    # Start at 0 degrees
+        angular_velocity: 2.0         # 2 rad/s (~115 deg/s)
+        center: [0.5, 0.5, 0.5]      # Center of the 1m cube
 
-  remesh_interval: 20
+    # Part 2: Static sphere (reference body, no transform)
+    - stl_file: "ball1m.stl"
+      stl_scale: 0.4
+      translation: [0.0, 2.5, 0.0]
+
+  # Re-voxelize every 10 steps to track the rotation
+  remesh_interval: 10
 
   surface_resolution: 20
   num_levels: 4
@@ -47,8 +49,8 @@ basic:
     velocity: 10.0
 
   simulation:
-    steps: 100
-    ramp_steps: 20
+    steps: 200
+    ramp_steps: 40
     output_freq: 50
     output_dir: "RESULTS"
     output_fields:
