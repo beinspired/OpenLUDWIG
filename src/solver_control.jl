@@ -25,7 +25,10 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                          cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                          domain_nx::Int, domain_ny::Int, domain_nz::Int,
                          wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
-                         inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
+                         inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+                         transition_mode::Int32=Int32(0),
+                         transition_re_critical::Float32=500.0f0,
+                         transition_sharpness::Float32=0.3f0)
     
     if current_lvl > length(grids); return; end
     
@@ -57,11 +60,12 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                          cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                          domain_nx, domain_ny, domain_nz,
                          wall_model_active, c_wale_val, nu_sgs_bg,
-                         t_sub, inlet_turbulence, 0.0f0, use_temporal_interp, sponge_blend_dist)
-    
-    
+                         t_sub, inlet_turbulence, 0.0f0, use_temporal_interp, sponge_blend_dist,
+                         transition_mode, transition_re_critical, transition_sharpness)
+
+
     if has_children
-        
+
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub,
                                  f_out, level.rho, vel_out, level.block_pointer,
                                  level.f_old, level.rho_old, level.vel_old,
@@ -69,9 +73,10 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
-        
-        
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_mode, transition_re_critical, transition_sharpness)
+
+
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub + 1,
                                  f_out, level.rho, vel_out, level.block_pointer,
                                  level.f_old, level.rho_old, level.vel_old,
@@ -79,7 +84,8 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_mode, transition_re_critical, transition_sharpness)
     end
 end
 
@@ -90,7 +96,10 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                                   cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                   domain_nx::Int, domain_ny::Int, domain_nz::Int,
                                   wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
-                                  inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
+                                  inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+                                  transition_mode::Int32=Int32(0),
+                                  transition_re_critical::Float32=500.0f0,
+                                  transition_sharpness::Float32=0.3f0)
     
     if current_lvl > length(grids); return; end
     
@@ -119,8 +128,9 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                          cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                          domain_nx, domain_ny, domain_nz,
                          wall_model_active, c_wale_val, nu_sgs_bg,
-                         t_sub, inlet_turbulence, temporal_weight, use_temporal_interp, sponge_blend_dist)
-    
+                         t_sub, inlet_turbulence, temporal_weight, use_temporal_interp, sponge_blend_dist,
+                         transition_mode, transition_re_critical, transition_sharpness)
+
     if has_children
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub,
                                  f_out, level.rho, vel_out, level.block_pointer,
@@ -129,8 +139,9 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
-        
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_mode, transition_re_critical, transition_sharpness)
+
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub + 1,
                                  f_out, level.rho, vel_out, level.block_pointer,
                                  level.f_old, level.rho_old, level.vel_old,
@@ -138,7 +149,8 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_mode, transition_re_critical, transition_sharpness)
     end
 end
 
@@ -146,7 +158,10 @@ function execute_timestep_batch!(grids, t_start::Int, batch_size::Int, u_curr::F
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx::Int, domain_ny::Int, domain_nz::Int,
                                  wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
-                                 inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
+                                 inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+                                 transition_mode::Int32=Int32(0),
+                                 transition_re_critical::Float32=500.0f0,
+                                 transition_sharpness::Float32=0.3f0)
     backend = get_backend(grids[1].rho)
     
     for t_offset in 0:(batch_size-1)
@@ -158,7 +173,8 @@ function execute_timestep_batch!(grids, t_start::Int, batch_size::Int, u_curr::F
                         cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                         domain_nx, domain_ny, domain_nz,
                         wall_model_active, c_wale_val, nu_sgs_bg,
-                        inlet_turbulence, use_temporal_interp, sponge_blend_dist)
+                        inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                        transition_mode, transition_re_critical, transition_sharpness)
     end
     
     KernelAbstractions.synchronize(backend)

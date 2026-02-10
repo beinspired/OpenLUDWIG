@@ -34,7 +34,10 @@ function perform_timestep_v2!(
     domain_nx, domain_ny, domain_nz,
     wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
     timestep::Int, inlet_turbulence::Float32,
-    temporal_weight::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool
+    temporal_weight::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+    transition_mode::Int32=Int32(0),
+    transition_re_critical::Float32=500.0f0,
+    transition_sharpness::Float32=0.3f0
 )
     backend = get_backend(f_in)
     n_blocks = length(level.active_block_coords)
@@ -79,6 +82,9 @@ function perform_timestep_v2!(
         Float32(temporal_weight),
         use_temporal_interp ? Int32(1) : Int32(0),
         sponge_blend_dist ? Int32(1) : Int32(0),
+        transition_mode,
+        transition_re_critical,
+        transition_sharpness,
         ndrange=(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n_blocks)
     )
     

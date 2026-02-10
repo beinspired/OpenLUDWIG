@@ -93,6 +93,11 @@ global GPU_ASYNC_DEPTH = 3
 global USE_STREAMS = true
 global PREFETCH_NEIGHBORS = true
 
+# --- Transition Model Parameters ---
+global TRANSITION_MODEL = :none              # :none, :natural, :sensor
+global TRANSITION_RE_CRITICAL = 500.0f0      # Critical strain-rate Re for sensor mode
+global TRANSITION_SHARPNESS = 0.3f0          # Width of transition band (fraction of Re_crit)
+
 # --- Helper Functions ---
 
 function safe_get(dict, keys...; default=nothing)
@@ -194,6 +199,11 @@ function load_case_configuration(case_folder_name::String)
     global GPU_ASYNC_DEPTH = Int(safe_get(CFG, "advanced", "gpu", "async_depth"; default=8))
     global USE_STREAMS = safe_get(CFG, "advanced", "gpu", "use_streams"; default=true)
     global PREFETCH_NEIGHBORS = safe_get(CFG, "advanced", "gpu", "prefetch_neighbors"; default=true)
+
+    # Transition model
+    global TRANSITION_MODEL = Symbol(safe_get(CFG, "advanced", "transition", "model"; default="none"))
+    global TRANSITION_RE_CRITICAL = Float32(safe_get(CFG, "advanced", "transition", "re_critical"; default=500.0))
+    global TRANSITION_SHARPNESS = Float32(safe_get(CFG, "advanced", "transition", "sharpness"; default=0.3))
     
     # Flag to reset domain parameters when a new case loads
     if isdefined(Main, :DOMAIN_PARAMS)
@@ -205,5 +215,11 @@ function load_case_configuration(case_folder_name::String)
     @printf("[Init]    Background ν_sgs: %.6f → τ_eff_min ≈ %.4f\n", NU_SGS_BACKGROUND, 0.5 + 3*NU_SGS_BACKGROUND)
     println("[Init]    Sponge f-blending: $SPONGE_BLEND_DISTRIBUTIONS")
     println("[Init]    Temporal interpolation: $TEMPORAL_INTERPOLATION")
+    println("[Init] TRANSITION MODEL: $TRANSITION_MODEL")
+    if TRANSITION_MODEL == :sensor
+        @printf("[Init]    Re_critical: %.1f, Sharpness: %.2f\n", TRANSITION_RE_CRITICAL, TRANSITION_SHARPNESS)
+    elseif TRANSITION_MODEL == :natural
+        println("[Init]    Mode: WALE natural transition (no SGS background floor)")
+    end
     println("[Init] ═══════════════════════════════════════════════════════")
 end

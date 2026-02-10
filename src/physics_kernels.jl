@@ -34,7 +34,10 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
     inlet_turbulence::Float32,
     temporal_weight::Float32,
     use_temporal_interp::Int32,
-    sponge_blend_distributions::Int32
+    sponge_blend_distributions::Int32,
+    transition_mode::Int32,
+    transition_re_critical::Float32,
+    transition_sharpness::Float32
 )
     x, y, z, b_idx = @index(Global, NTuple)
     
@@ -289,13 +292,52 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
                         nu_eddy = (c_wale * c_wale) * OP1_32 / denom
                     end
                 end
-                
-                
-                
-                
-                
-                nu_eddy = max(nu_eddy, nu_sgs_background)
-                
+
+                # ── Transition model ──────────────────────────────────────
+                # Mode 0 (none):    Standard WALE-LES with SGS background floor
+                # Mode 1 (natural): WALE vanishes naturally in laminar regions
+                # Mode 2 (sensor):  Local strain-Re modulates eddy viscosity
+                gamma_trans = 1.0f0
+
+                if transition_mode == Int32(0)
+                    # Standard behaviour: apply background SGS floor
+                    nu_eddy = max(nu_eddy, nu_sgs_background)
+
+                elseif transition_mode == Int32(1)
+                    # Natural transition: WALE already → 0 in laminar flow.
+                    # No artificial background viscosity floor applied.
+                    # (nu_eddy stays as computed by WALE)
+
+                elseif transition_mode == Int32(2)
+                    # Sensor-based transition using strain-rate Reynolds number
+                    nu_mol = (tau_molecular - 0.5f0) / 3.0f0
+                    strain_mag = sqrt(max(OP2, 0.0f0))
+                    re_local = strain_mag / max(nu_mol, 1.0f-10)
+
+                    # Smoothstep intermittency: γ = 0 (laminar) → 1 (turbulent)
+                    re_half = transition_re_critical * transition_sharpness
+                    re_lo = transition_re_critical - re_half
+                    re_hi = transition_re_critical + re_half
+                    t_norm = (re_local - re_lo) / max(re_hi - re_lo, 1.0f-6)
+                    t_clamp = min(max(t_norm, 0.0f0), 1.0f0)
+                    gamma_trans = t_clamp * t_clamp * (3.0f0 - 2.0f0 * t_clamp)
+
+                    # Scale eddy viscosity by intermittency
+                    nu_eddy = gamma_trans * nu_eddy
+                end
+
+                # Scale wall model forces by intermittency in sensor mode
+                # (log-law wall model is invalid in laminar regions)
+                if transition_mode == Int32(2) && gamma_trans < 0.999f0
+                    Fx_wall = Fx_wall * gamma_trans
+                    Fy_wall = Fy_wall * gamma_trans
+                    Fz_wall = Fz_wall * gamma_trans
+                    ux_eq = ux + 0.5f0 * Fx_wall * inv_rho
+                    uy_eq = uy + 0.5f0 * Fy_wall * inv_rho
+                    uz_eq = uz + 0.5f0 * Fz_wall * inv_rho
+                    usq_eq = ux_eq*ux_eq + uy_eq*uy_eq + uz_eq*uz_eq
+                end
+
                 tau_turb = tau_molecular + nu_eddy * 3.0f0
                 omega = 1.0f0 / max(tau_turb, 0.500001f0)
 

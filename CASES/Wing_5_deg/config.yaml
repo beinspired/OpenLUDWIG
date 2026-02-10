@@ -255,6 +255,28 @@ advanced:
     moment_center: [0.25, 0.0, 0.0]
   
   # --------------------------------------------------------------------------
+  # LAMINAR-TURBULENT TRANSITION MODEL
+  # --------------------------------------------------------------------------
+  # Controls how the solver handles laminar-to-turbulent transition.
+  # This extends the WALE-LES approach (similar to PowerFLOW VLES extension).
+  #
+  # Available models:
+  #   "none"    - Standard WALE-LES with SGS background viscosity floor.
+  #               Best for fully turbulent high-Re flows. (Default)
+  #   "natural" - WALE model naturally vanishes in laminar regions.
+  #               No artificial background viscosity. Requires finer mesh.
+  #               Similar to DNS-mode approach in LBM.
+  #   "sensor"  - Local strain-rate Reynolds number sensor modulates
+  #               eddy viscosity via smooth intermittency function.
+  #               Also scales wall model forcing in laminar regions.
+  #               Closest to PowerFLOW's VLES transition extension.
+  transition:
+    model: "none"
+    # For "sensor" mode only:
+    re_critical: 500.0    # Critical strain-rate Re for transition onset
+    sharpness: 0.3        # Width of transition band (fraction of re_critical)
+
+  # --------------------------------------------------------------------------
   # DIAGNOSTICS
   # --------------------------------------------------------------------------
   diagnostics:

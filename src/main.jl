@@ -55,7 +55,7 @@ function solve_main()
     SIMULATION_START_TIME[] = time()
     
     println("\n" * "="^70)
-    println("    LBM SOLVER | D3Q27 | WALE LES | SURFACE FORCE METHOD")
+    println("    LBM SOLVER | D3Q27 | WALE LES + TRANSITION | SURFACE FORCE METHOD")
     println("    Case: $(basename(CASE_DIR)) | $(Dates.now())")
     println("="^70)
     
@@ -64,11 +64,21 @@ function solve_main()
     nu_sgs_bg = NU_SGS_BACKGROUND
     use_temporal = TEMPORAL_INTERPOLATION
     sponge_blend = SPONGE_BLEND_DISTRIBUTIONS
-    
+
+    # Transition model parameters
+    trans_mode = TRANSITION_MODEL == :natural ? Int32(1) :
+                 TRANSITION_MODEL == :sensor  ? Int32(2) : Int32(0)
+    trans_re_crit = TRANSITION_RE_CRITICAL
+    trans_sharpness = TRANSITION_SHARPNESS
+
     println("\n[Config] Stability Settings:")
     @printf("          Background ν_sgs: %.6f → τ_eff_min ≈ %.4f\n", nu_sgs_bg, 0.5 + 3*nu_sgs_bg)
     println("          Sponge f-blending: $sponge_blend")
     println("          Temporal interpolation: $use_temporal")
+    println("          Transition model: $TRANSITION_MODEL")
+    if TRANSITION_MODEL == :sensor
+        @printf("          Transition Re_crit: %.1f, sharpness: %.2f\n", trans_re_crit, trans_sharpness)
+    end
     
     force_cleanup()
     
@@ -177,7 +187,8 @@ function solve_main()
                                cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                domain_nx, domain_ny, domain_nz,
                                params.wall_model_active, c_wale, nu_sgs_bg,
-                               inlet_turb, use_temporal, sponge_blend)
+                               inlet_turb, use_temporal, sponge_blend,
+                               trans_mode, trans_re_crit, trans_sharpness)
         
         # Diagnostics output
         if batch_end % DIAG_FREQ < actual || batch_end == STEPS
