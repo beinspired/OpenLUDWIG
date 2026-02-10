@@ -147,8 +147,6 @@ function execute_timestep_batch!(grids, t_start::Int, batch_size::Int, u_curr::F
                                  domain_nx::Int, domain_ny::Int, domain_nz::Int,
                                  wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
                                  inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
-    backend = get_backend(grids[1].rho)
-    
     for t_offset in 0:(batch_size-1)
         t = t_start + t_offset
         recursive_step!(grids, 1, t,
@@ -160,6 +158,6 @@ function execute_timestep_batch!(grids, t_start::Int, batch_size::Int, u_curr::F
                         wall_model_active, c_wale_val, nu_sgs_bg,
                         inlet_turbulence, use_temporal_interp, sponge_blend_dist)
     end
-    
-    KernelAbstractions.synchronize(backend)
+    # Note: No explicit synchronize needed here -- perform_timestep_v2! already
+    # synchronizes after each kernel launch, so all work is complete on return.
 end

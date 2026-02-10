@@ -72,9 +72,52 @@ function solve_main()
     
     force_cleanup()
     
-    backend = CUDA.functional() ? (println("[Backend] CUDA: $(CUDA.name(CUDA.device()))"); CUDABackend()) : (println("[Backend] CPU"); CPU())
-    if CUDA.functional(); CUDA.allowscalar(false); end
+    if CUDA.functional()
+        dev = CUDA.device()
+        println("[Backend] CUDA: $(CUDA.name(dev))")
+        println("[GPU Info] Device ID:            $(CUDA.deviceid(dev))")
+        println("[GPU Info] Compute Capability:   $(CUDA.capability(dev))")
+        free_vram, total_vram = CUDA.memory_info()
+        @printf("[GPU Info] VRAM:                 %.2f GB free / %.2f GB total\n", free_vram/1024^3, total_vram/1024^3)
+        try
+            nvml_dev = CUDA.NVML.Device(CUDA.deviceid(dev))
+            driver_ver = CUDA.NVML.driver_version()
+            println("[GPU Info] Driver Version:       $driver_ver")
+            rates = CUDA.NVML.utilization_rates(nvml_dev)
+            println("[GPU Info] Current Utilization:  GPU=$(rates.compute)%, Mem=$(rates.memory)%")
+        catch e
+            println("[GPU Info] NVML query failed: $e")
+        end
+        backend = CUDABackend()
+        CUDA.allowscalar(false)
+    else
+        println("[Backend] CPU  *** WARNING: CUDA not functional, running on CPU! ***")
+        println("[Backend] GPU will show 0% utilization because the solver is NOT using it.")
+        println("[Backend] To enable GPU: ensure CUDA drivers are installed and run:")
+        println("[Backend]   julia -e \"using CUDA; println(CUDA.functional())\"")
+        backend = CPU()
+    end
     
+    # GPU smoke test: verify kernels actually execute on the GPU
+    if backend isa CUDABackend
+        try
+            test_arr = CUDA.zeros(Float32, 1024)
+            test_arr .= 1.0f0
+            test_sum = sum(test_arr)
+            CUDA.synchronize()
+            if abs(test_sum - 1024.0f0) < 0.1f0
+                println("[GPU Test] PASSED - CUDA kernels executing correctly")
+            else
+                println("[GPU Test] WARNING - Unexpected result: $test_sum (expected 1024.0)")
+            end
+            test_arr = nothing
+        catch e
+            println("[GPU Test] FAILED - CUDA kernel execution error: $e")
+            println("[GPU Test] Falling back to CPU backend")
+            backend = CPU()
+        end
+    end
+
     output_dir = OUT_DIR
     isdir(output_dir) ? (for f in readdir(output_dir); rm(joinpath(output_dir, f); recursive=true, force=true); end) : mkdir(output_dir)
     
@@ -158,8 +201,14 @@ function solve_main()
     
     log_walltime("LBM Analysis STARTED")
     println()
-    @printf("%8s | %12s | %10s | %7s | %7s | %6s | %8s | %8s\n", "Step", "Walltime", "Time[s]", "U_lat", "ρ_min", "MLUPS", "Cd", "Cl")
-    println(repeat("-", 90))
+    has_nvml = CUDA.functional()
+    if has_nvml
+        @printf("%8s | %12s | %10s | %7s | %7s | %6s | %8s | %8s | %4s | %4s\n", "Step", "Walltime", "Time[s]", "U_lat", "ρ_min", "MLUPS", "Cd", "Cl", "GPU%", "Temp")
+        println(repeat("-", 106))
+    else
+        @printf("%8s | %12s | %10s | %7s | %7s | %6s | %8s | %8s\n", "Step", "Walltime", "Time[s]", "U_lat", "ρ_min", "MLUPS", "Cd", "Cl")
+        println(repeat("-", 90))
+    end
 
     t_start_sim = time()
     last_diag = time()
@@ -202,8 +251,15 @@ function solve_main()
                     append_force_csv(force_csv, diag_step, time_phys, force_data, u_curr)
                 end
                 
-                @printf("%8d | %12s | %10.4f | %.4f | %.4f | %6.1f | %8s | %8s\n",
-                        diag_step, walltime_str(), time_phys, u_curr, stats.rho_min, mlups, cd_str, cl_str)
+                gpu_info = query_gpu_utilization()
+                if gpu_info !== nothing
+                    @printf("%8d | %12s | %10.4f | %.4f | %.4f | %6.1f | %8s | %8s | %3d%% | %3d°C\n",
+                            diag_step, walltime_str(), time_phys, u_curr, stats.rho_min, mlups, cd_str, cl_str,
+                            gpu_info.compute, gpu_info.temperature)
+                else
+                    @printf("%8d | %12s | %10.4f | %.4f | %.4f | %6.1f | %8s | %8s\n",
+                            diag_step, walltime_str(), time_phys, u_curr, stats.rho_min, mlups, cd_str, cl_str)
+                end
                 open(csv_path, "a") do io
                     println(io, "$diag_step,$(walltime_str()),$time_phys,$u_curr,$(stats.rho_min),$mlups,$cd_str,$cl_str")
                 end

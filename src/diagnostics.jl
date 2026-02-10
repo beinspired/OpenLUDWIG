@@ -94,6 +94,23 @@ function compute_flow_stats(level::BlockLevel)
 end
 
 """
+Query GPU utilization via NVML. Returns (gpu_util%, mem_util%, temp_C) or nothing if unavailable.
+"""
+function query_gpu_utilization()
+    if !CUDA.functional()
+        return nothing
+    end
+    try
+        nvml_dev = CUDA.NVML.Device(CUDA.deviceid(CUDA.device()))
+        rates = CUDA.NVML.utilization_rates(nvml_dev)
+        temp = CUDA.NVML.temperature(nvml_dev)
+        return (compute=rates.compute, memory=rates.memory, temperature=temp)
+    catch
+        return nothing
+    end
+end
+
+"""
 Check simulation stability and print warnings.
 """
 function check_stability(level::BlockLevel, step::Int)
