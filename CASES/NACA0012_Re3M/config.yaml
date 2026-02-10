@@ -12,8 +12,8 @@
 #   - Turbulent BL from transition point to TE
 #   - Cd ~ 0.006-0.008 (transition), vs Cd ~ 0.012 (fully turbulent)
 #
-# Resolution: 3000 cells/chord → dx_fine ≈ 3.33e-4 m → y+ ≈ 8
-# Estimated VRAM: ~6-8 GB (fits 12GB GPU)
+# Resolution: 2000 cells/chord → dx_fine ≈ 5.0e-4 m → y+ ≈ 12
+# Estimated VRAM: ~5-7 GB (fits 12GB GPU)
 # ==============================================================================
 
 basic:
@@ -21,11 +21,11 @@ basic:
   stl_scale: 1.0
 
   # High resolution to approach transition-relevant y+
-  # 3000 cells/chord → dx_fine ≈ 0.333 mm → y+ ≈ 8 at Re=3M
-  surface_resolution: 3000
+  # 2000 cells/chord → dx_fine ≈ 0.5 mm → y+ ≈ 12 at Re=3M
+  surface_resolution: 2000
 
-  # 9 levels: dx_coarse = dx_fine * 2^8 ≈ 85.3 mm
-  num_levels: 9
+  # 8 levels: dx_coarse = dx_fine * 2^7 = 64 mm
+  num_levels: 8
 
   # Reference values for NACA 0012
   reference_area_of_full_model: 0.05   # chord * span = 1.0 * 0.05 m²
@@ -104,7 +104,7 @@ advanced:
 
   refinement:
     block_size: 8
-    margin: 2
+    margin: 1
     strategy: "geometry_first"
     symmetric_analysis: false           # Full model (no symmetry plane)
     wake_enabled: true                  # Refine wake for drag accuracy
