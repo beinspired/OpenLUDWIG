@@ -60,7 +60,6 @@ global MAX_LEVELS = 12
 global MIN_COARSE_BLOCKS = 4
 global WALL_MODEL_ENABLED = false
 global WALL_MODEL_TYPE = :equilibrium
-global WALL_MODEL_YPLUS_TARGET = 30.0
 
 global DOMAIN_UPSTREAM = 0.75
 global DOMAIN_DOWNSTREAM = 1.5
@@ -168,8 +167,6 @@ function load_case_configuration(case_folder_name::String)
     global MIN_COARSE_BLOCKS = Int(safe_get(CFG, "advanced", "high_re", "min_coarse_blocks"; default=4))
     global WALL_MODEL_ENABLED = safe_get(CFG, "advanced", "high_re", "wall_model", "enabled"; default=false)
     global WALL_MODEL_TYPE = Symbol(safe_get(CFG, "advanced", "high_re", "wall_model", "type"; default="equilibrium"))
-    global WALL_MODEL_YPLUS_TARGET = Float64(safe_get(CFG, "advanced", "high_re", "wall_model", "y_plus_target"; default=30.0))
-    
     global DOMAIN_UPSTREAM = Float64(safe_get(CFG, "advanced", "domain", "upstream"; default=0.75))
     global DOMAIN_DOWNSTREAM = Float64(safe_get(CFG, "advanced", "domain", "downstream"; default=1.5))
     global DOMAIN_LATERAL = Float64(safe_get(CFG, "advanced", "domain", "lateral"; default=0.75))

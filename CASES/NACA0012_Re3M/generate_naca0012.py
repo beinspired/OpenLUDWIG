@@ -1,6 +1,6 @@
 """
 Generate a NACA 0012 airfoil STL for LBM simulation.
-Chord = 1.0 m, span = 0.2 m (thin 3D extrusion), AoA = 0 degrees.
+Chord = 1.0 m, span = 0.05 m (quasi-2D extrusion), AoA = 0 degrees.
 Flow direction: +X, span direction: +Y.
 """
 import numpy as np
@@ -107,4 +107,4 @@ def generate_naca0012_stl(filename, chord=1.0, span=0.2, n_chord=120, n_span=2):
     print(f"  Z range: [{y_lower.min():.4f}, {y_upper.max():.4f}]")
 
 if __name__ == "__main__":
-    generate_naca0012_stl("model.stl", chord=1.0, span=0.2, n_chord=120, n_span=2)
+    generate_naca0012_stl("model.stl", chord=1.0, span=0.05, n_chord=120, n_span=2)

@@ -52,7 +52,6 @@ mutable struct DomainParameters
     tau_fine::Float64
     tau_margin_percent::Float64
     wall_model_active::Bool
-    y_plus_first_cell::Float64
     estimated_memory_gb::Float64
 end
 
@@ -60,7 +59,7 @@ global DOMAIN_PARAMS = DomainParameters(
     false, 0, (0.0,0.0,0.0), (0.0,0.0,0.0), (0.0,0.0,0.0), (0.0,0.0,0.0),
     0.0, 0.0, 0.0, (0.0,0.0,0.0), (0.0,0.0,0.0), (0.0,0.0,0.0), (0.0,0.0,0.0), (0.0,0.0,0.0),
     0.0, 0.0, Float64[], 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0f0, Float32[], 1f0/3f0, 1f0/9f0,
-    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, 0.0, 0.0
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, 0.0
 )
 
 function compute_tau_for_levels(Re::Float64, ref_length::Float64, resolution::Int, n_levels::Int, u_lattice::Float32)
@@ -169,7 +168,7 @@ function compute_domain_from_mesh(mesh_min::Tuple{Float64,Float64,Float64}, mesh
     p.re_number, p.u_physical, p.rho_physical, p.nu_physical = re_number, u_phys, rho_phys, nu_phys
     p.length_scale, p.time_scale, p.velocity_scale, p.force_scale = length_scale, time_scale, velocity_scale, force_scale
     p.tau_fine, p.tau_margin_percent = tau_fine, (tau_fine - 0.5)/0.5*100
-    p.wall_model_active, p.y_plus_first_cell = WALL_MODEL_ENABLED, 0.0
+    p.wall_model_active = WALL_MODEL_ENABLED
     p.estimated_memory_gb = estimated_memory_gb
     
     return p

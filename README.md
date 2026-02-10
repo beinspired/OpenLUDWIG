@@ -342,7 +342,7 @@ advanced:
     wall_model:
       enabled: true              # Activate WMLES wall model
       type: "equilibrium"        # Log-law based wall stress
-      y_plus_target: 100.0       # Target y+ for first cell
+
     
     adaptive_refinement:         # Placeholder for future AMR
       enabled: false

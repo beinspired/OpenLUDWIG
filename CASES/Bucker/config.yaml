@@ -171,8 +171,6 @@ advanced:
     wall_model:
       enabled: true               # true = Activate Wall Model.
       type: "equilibrium"         # Currently supports "equilibrium" (Spalding/Log-law).
-      y_plus_target: 100.0        # Target y+ for the first cell center (approximate).
-      
     # Adaptive Mesh Refinement (AMR) - Placeholder for future use.
     adaptive_refinement:
       enabled: false

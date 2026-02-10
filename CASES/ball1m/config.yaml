@@ -48,7 +48,7 @@ advanced:
     wall_model:
       enabled: true
       type: "equilibrium"
-      y_plus_target: 100.0
+
     adaptive_refinement:
       enabled: false
       criterion: "vorticity"
