@@ -1,0 +1,131 @@
+# ==============================================================================
+# NACA 0012 Airfoil - Transition Study Case
+# ==============================================================================
+# Chord = 1.0 m, AoA = 0°, Re = 3,000,000
+# U_inf = 45 m/s (air at sea level)
+#
+# Purpose: Validate gamma-intermittency transition model.
+# Expected physics:
+#   - Laminar boundary layer from LE up to ~40-60% chord
+#   - Natural transition triggered by Tollmien-Schlichting instabilities
+#   - Turbulent BL from transition point to TE
+#   - Cd ~ 0.006-0.008 (transition), vs Cd ~ 0.012 (fully turbulent)
+# ==============================================================================
+
+basic:
+  stl_file: "model.stl"
+  stl_scale: 1.0
+
+  # High resolution to resolve transition region
+  surface_resolution: 300
+
+  # Multi-grid levels (auto or manual)
+  num_levels: 5
+
+  # Reference values for NACA 0012
+  reference_area_of_full_model: 0.2    # chord * span = 1.0 * 0.2 m²
+  reference_chord: 1.0                  # MAC = chord for 2D airfoil
+  reference_length_for_meshing: 1.0     # chord length
+  reference_dimension: "x"              # flow direction
+
+  fluid:
+    density: 1.225                      # kg/m³ (sea level air)
+    kinematic_viscosity: 1.5e-5         # m²/s (air at 20°C)
+
+  flow:
+    velocity: 45.0                      # m/s → Re = 45 * 1.0 / 1.5e-5 = 3,000,000
+
+  simulation:
+    steps: 30000                        # Long run for transition to develop
+    ramp_steps: 5000                    # Gradual velocity ramp (important for transition)
+    output_freq: 2000                   # VTK output every 2000 steps
+    output_dir: "RESULTS"
+
+    output_fields:
+      density: false
+      velocity: true
+      velocity_magnitude: true
+      vorticity: false
+      obstacle: true
+      level: true
+      bouzidi: false
+
+advanced:
+  numerics:
+    u_lattice: 0.01                     # Low Mach for accuracy
+    c_wale: 0.325                       # Standard WALE constant (not over-damped)
+    tau_min: 0.500001
+    tau_safety_factor: 1.0
+    inlet_turbulence_intensity: 0.005   # Low inlet noise (0.5%)
+    nu_sgs_background: 0.0001          # Low background viscosity for transition sensitivity
+    sponge_blend_distributions: true
+    temporal_interpolation: true
+
+  high_re:
+    auto_levels: false
+    max_levels: 12
+    min_coarse_blocks: 4
+
+    wall_model:
+      enabled: true
+      type: "equilibrium"
+      y_plus_target: 50.0
+
+    adaptive_refinement:
+      enabled: false
+      criterion: "vorticity"
+      threshold: 0.1
+
+  # --------------------------------------------------------------------------
+  # GAMMA TRANSITION MODEL - ENABLED for this case
+  # --------------------------------------------------------------------------
+  transition:
+    enabled: true
+
+    # Low freestream turbulence (clean wind tunnel conditions)
+    # Tu = 0.5% → Re_θc ≈ 500-600 → transition at ~40-60% chord
+    turbulence_intensity: 0.5
+
+    # Moderate diffusion for smooth gamma field
+    gamma_diffusion: 0.001
+
+    # Start fully laminar - let transition develop naturally
+    gamma_initial: 0.0
+
+  domain:
+    upstream: 1.0                       # 1 chord upstream
+    downstream: 2.0                     # 2 chords downstream (wake)
+    lateral: 0.5                        # Span padding
+    height: 1.0                         # Vertical space
+    sponge_thickness: 0.10
+
+  refinement:
+    block_size: 8
+    margin: 2
+    strategy: "geometry_first"
+    symmetric_analysis: false           # Full model (no symmetry plane)
+    wake_enabled: true                  # Refine wake for drag accuracy
+    wake_length: 0.5
+    wake_width_factor: 0.1
+    wake_height_factor: 0.15
+
+  boundary:
+    method: "bouzidi"
+    bouzidi_levels: 1
+    use_float16_qmap: true
+    q_min_threshold: 0.001
+
+  forces:
+    enabled: true
+    output_freq: 0
+    moment_center: [0.25, 0.0, 0.0]    # Quarter-chord
+
+  diagnostics:
+    freq: 500
+    stability_check: true
+    print_tau_warning: true
+
+  gpu:
+    async_depth: 8
+    use_streams: true
+    prefetch_neighbors: true

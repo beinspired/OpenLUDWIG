@@ -201,20 +201,24 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
                 end
                 
                 
+                # Read gamma for wall model and turbulence scaling
+                gamma_local = transition_active == Int32(1) ? gamma_arr[x, y, z, b_idx] : 1.0f0
+
                 Fx_wall = 0.0f0
                 Fy_wall = 0.0f0
                 Fz_wall = 0.0f0
-                
+
                 if wall_model_active == Int32(1)
                     dist_wall = wall_dist_arr[x, y, z, b_idx]
-                    if dist_wall > 0.0f0 && dist_wall < 10.0f0
+                    # Skip log-law computation entirely in laminar regions (γ ≈ 0)
+                    if dist_wall > 0.0f0 && dist_wall < 10.0f0 && gamma_local > 0.01f0
                         u_mag = sqrt(ux*ux + uy*uy + uz*uz)
                         nu_visc = (tau_molecular - 0.5f0) / 3.0f0
-                        
+
                         if u_mag > 1.0f-6 && nu_visc > 1.0f-10
                             u_tau = u_mag * (nu_visc / (dist_wall * u_mag + 1.0f-10))^(1.0f0/7.0f0) * (2.0f0 * 8.3f0)^(-1.0f0/7.0f0)
                             u_tau = max(u_tau, 1.0f-6)
-                            
+
                             y_p = u_tau * dist_wall / nu_visc
                             if y_p > 11.81f0
                                 u_plus_law = (1.0f0 / KAPPA) * log(y_p) + 5.2f0
@@ -223,12 +227,13 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
                                     u_tau = max(u_tau, 1.0f-6)
                                 end
                             end
-                            
+
                             tau_wall = rho * u_tau * u_tau
                             tau_res = rho * nu_visc * (u_mag / dist_wall)
-                            
+
                             if tau_wall > tau_res
-                                force_mag = (tau_wall - tau_res) / dist_wall
+                                # Scale wall model force by γ: laminar regions get no extra wall stress
+                                force_mag = gamma_local * (tau_wall - tau_res) / dist_wall
                                 Fx_wall = -force_mag * ux / u_mag
                                 Fy_wall = -force_mag * uy / u_mag
                                 Fz_wall = -force_mag * uz / u_mag
@@ -298,7 +303,6 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
                 
                 # Apply gamma transition model: scale eddy viscosity by intermittency
                 if transition_active == Int32(1)
-                    gamma_local = gamma_arr[x, y, z, b_idx]
                     nu_eddy = gamma_local * nu_eddy + (1.0f0 - gamma_local) * nu_sgs_background
                 end
 
