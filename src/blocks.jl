@@ -18,40 +18,44 @@ mutable struct BlockLevel{T_P4, T_P5, T_BlockPtr, T_NbTable, T_Obst, T_F16, T_I8
     dx::Float64
     dt::Float32
     tau::Float32
-    
+
     grid_dim_x::Int
     grid_dim_y::Int
     grid_dim_z::Int
-    
+
     block_pointer::T_BlockPtr
     active_block_coords::Vector{Tuple{Int, Int, Int}}
-    
+
     # -- MACROSCOPIC VARS --
     rho::T_P4
     vel::T_P5
     vel_temp::T_P5
-    
+
     # -- TEMPORAL INTERPOLATION STORAGE --
     rho_old::T_P4
     vel_old::T_P5
-    
+
     # -- DISTRIBUTIONS --
     f::T_P5
     f_temp::T_P5
     f_post_collision::T_P5
-    f_old::T_P5  
-    
+    f_old::T_P5
+
+    # -- GAMMA TRANSITION MODEL --
+    gamma::T_P4       # Intermittency factor γ ∈ [0,1]
+    gamma_temp::T_P4  # Double-buffer for gamma transport
+
     # -- GEOMETRY / SPONGE --
     wall_dist::T_P4
     obstacle::T_Obst
     sponge::T_P4
-    
+
     # -- CONNECTIVITY --
     neighbor_table::T_NbTable
     map_x::T_MapVec
     map_y::T_MapVec
     map_z::T_MapVec
-    
+
     # -- BOUZIDI IBM DATA --
     bouzidi_enabled::Bool
     bouzidi_q_map::T_F16
@@ -60,7 +64,7 @@ mutable struct BlockLevel{T_P4, T_P5, T_BlockPtr, T_NbTable, T_Obst, T_F16, T_I8
     bouzidi_cell_y::T_I8
     bouzidi_cell_z::T_I8
     # MAPPING TO SURFACE TRIANGLES (New)
-    bouzidi_tri_map::T_TriMap 
+    bouzidi_tri_map::T_TriMap
     n_boundary_cells::Int
 end
 
@@ -74,6 +78,7 @@ function Adapt.adapt_structure(to, level::BlockLevel)
         adapt(to, level.rho_old), adapt(to, level.vel_old),
         adapt(to, level.f), adapt(to, level.f_temp),
         adapt(to, level.f_post_collision), adapt(to, level.f_old),
+        adapt(to, level.gamma), adapt(to, level.gamma_temp),
         adapt(to, level.wall_dist), adapt(to, level.obstacle), adapt(to, level.sponge),
         adapt(to, level.neighbor_table),
         adapt(to, level.map_x), adapt(to, level.map_y), adapt(to, level.map_z),
@@ -143,7 +148,11 @@ function BlockLevel(level_id::Int,
     else
         f_old = zeros(Float32, 1, 1, 1, 1, 27)
     end
-    
+
+    # Gamma transition model arrays (initialized to 1.0 = fully turbulent)
+    gamma = ones(Float32, BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n_blocks)
+    gamma_temp = ones(Float32, BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n_blocks)
+
     # Geometry arrays
     wall_dist = fill(100.0f0, BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n_blocks)
     obstacle = zeros(Bool, BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n_blocks)
@@ -179,6 +188,7 @@ function BlockLevel(level_id::Int,
         rho, vel, vel_temp,
         rho_old, vel_old,
         f, f_temp, f_post_collision, f_old,
+        gamma, gamma_temp,
         wall_dist, obstacle, sponge,
         neighbor_table, map_x, map_y, map_z,
         bouzidi_enabled,

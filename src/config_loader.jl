@@ -93,6 +93,12 @@ global GPU_ASYNC_DEPTH = 3
 global USE_STREAMS = true
 global PREFETCH_NEIGHBORS = true
 
+# --- Gamma Transition Model ---
+global TRANSITION_MODEL_ENABLED = false
+global TRANSITION_TURBULENCE_INTENSITY = 1.0  # Freestream Tu [%]
+global TRANSITION_GAMMA_DIFFUSION = 0.001     # Extra diffusion for stability
+global TRANSITION_GAMMA_INITIAL = 1.0         # Initial γ (1.0=turbulent, 0.0=laminar start)
+
 # --- Helper Functions ---
 
 function safe_get(dict, keys...; default=nothing)
@@ -194,7 +200,13 @@ function load_case_configuration(case_folder_name::String)
     global GPU_ASYNC_DEPTH = Int(safe_get(CFG, "advanced", "gpu", "async_depth"; default=8))
     global USE_STREAMS = safe_get(CFG, "advanced", "gpu", "use_streams"; default=true)
     global PREFETCH_NEIGHBORS = safe_get(CFG, "advanced", "gpu", "prefetch_neighbors"; default=true)
-    
+
+    # Gamma Transition Model
+    global TRANSITION_MODEL_ENABLED = safe_get(CFG, "advanced", "transition", "enabled"; default=false)
+    global TRANSITION_TURBULENCE_INTENSITY = Float64(safe_get(CFG, "advanced", "transition", "turbulence_intensity"; default=1.0))
+    global TRANSITION_GAMMA_DIFFUSION = Float64(safe_get(CFG, "advanced", "transition", "gamma_diffusion"; default=0.001))
+    global TRANSITION_GAMMA_INITIAL = Float64(safe_get(CFG, "advanced", "transition", "gamma_initial"; default=1.0))
+
     # Flag to reset domain parameters when a new case loads
     if isdefined(Main, :DOMAIN_PARAMS)
         DOMAIN_PARAMS.initialized = false
@@ -205,5 +217,11 @@ function load_case_configuration(case_folder_name::String)
     @printf("[Init]    Background ν_sgs: %.6f → τ_eff_min ≈ %.4f\n", NU_SGS_BACKGROUND, 0.5 + 3*NU_SGS_BACKGROUND)
     println("[Init]    Sponge f-blending: $SPONGE_BLEND_DISTRIBUTIONS")
     println("[Init]    Temporal interpolation: $TEMPORAL_INTERPOLATION")
+    if TRANSITION_MODEL_ENABLED
+        println("[Init] TRANSITION MODEL (γ-intermittency):")
+        @printf("[Init]    Turbulence intensity: %.2f%%\n", TRANSITION_TURBULENCE_INTENSITY)
+        @printf("[Init]    Gamma diffusion: %.4f\n", TRANSITION_GAMMA_DIFFUSION)
+        @printf("[Init]    Initial γ: %.1f\n", TRANSITION_GAMMA_INITIAL)
+    end
     println("[Init] ═══════════════════════════════════════════════════════")
 end

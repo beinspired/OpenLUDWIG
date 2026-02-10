@@ -55,7 +55,8 @@ function solve_main()
     SIMULATION_START_TIME[] = time()
     
     println("\n" * "="^70)
-    println("    LBM SOLVER | D3Q27 | WALE LES | SURFACE FORCE METHOD")
+    transition_str = TRANSITION_MODEL_ENABLED ? " | γ-Transition" : ""
+    println("    LBM SOLVER | D3Q27 | WALE LES$transition_str | SURFACE FORCE METHOD")
     println("    Case: $(basename(CASE_DIR)) | $(Dates.now())")
     println("="^70)
     
@@ -64,11 +65,23 @@ function solve_main()
     nu_sgs_bg = NU_SGS_BACKGROUND
     use_temporal = TEMPORAL_INTERPOLATION
     sponge_blend = SPONGE_BLEND_DISTRIBUTIONS
-    
+    transition_active = TRANSITION_MODEL_ENABLED
+
+    # Precompute transition model correlations
+    tu_pct = Float32(TRANSITION_TURBULENCE_INTENSITY)
+    re_theta_c = compute_re_theta_c(tu_pct)
+    f_length_val = compute_f_length(re_theta_c)
+    gamma_diffusion = Float32(TRANSITION_GAMMA_DIFFUSION)
+
     println("\n[Config] Stability Settings:")
     @printf("          Background ν_sgs: %.6f → τ_eff_min ≈ %.4f\n", nu_sgs_bg, 0.5 + 3*nu_sgs_bg)
     println("          Sponge f-blending: $sponge_blend")
     println("          Temporal interpolation: $use_temporal")
+    if transition_active
+        println("\n[Config] Gamma Transition Model: ENABLED")
+        @printf("          Tu = %.2f%% → Re_θc = %.1f, F_length = %.2f\n", tu_pct, re_theta_c, f_length_val)
+        @printf("          γ_initial = %.1f, D_γ = %.4f\n", TRANSITION_GAMMA_INITIAL, gamma_diffusion)
+    end
     
     force_cleanup()
     
@@ -106,7 +119,7 @@ function solve_main()
 
     log_walltime("Initializing equilibrium...")
     
-    @kernel function init_eq!(f, f_temp, f_old, rho_old, vel_old, W, has_old::Int32)
+    @kernel function init_eq!(f, f_temp, f_old, rho_old, vel_old, gamma, gamma_temp, W, has_old::Int32, gamma_init::Float32)
         x, y, z, b = @index(Global, NTuple)
         @inbounds begin
             for k in 1:27
@@ -120,15 +133,19 @@ function solve_main()
                 vel_old[x, y, z, b, 2] = 0.0f0
                 vel_old[x, y, z, b, 3] = 0.0f0
             end
+            gamma[x, y, z, b] = gamma_init
+            gamma_temp[x, y, z, b] = gamma_init
         end
     end
-    
+
+    gamma_init_val = Float32(TRANSITION_GAMMA_INITIAL)
     for lvl in 1:length(grids)
         level = grids[lvl]
         n = length(level.active_block_coords)
         if n > 0
             has_old = has_temporal_storage(level) ? Int32(1) : Int32(0)
-            init_eq!(backend)(level.f, level.f_temp, level.f_old, level.rho_old, level.vel_old, w_gpu, has_old,
+            init_eq!(backend)(level.f, level.f_temp, level.f_old, level.rho_old, level.vel_old,
+                              level.gamma, level.gamma_temp, w_gpu, has_old, gamma_init_val,
                               ndrange=(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n))
         end
     end
@@ -177,7 +194,9 @@ function solve_main()
                                cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                domain_nx, domain_ny, domain_nz,
                                params.wall_model_active, c_wale, nu_sgs_bg,
-                               inlet_turb, use_temporal, sponge_blend)
+                               inlet_turb, use_temporal, sponge_blend,
+                               transition_active, Float32(re_theta_c), Float32(f_length_val),
+                               tu_pct, gamma_diffusion)
         
         # Diagnostics output
         if batch_end % DIAG_FREQ < actual || batch_end == STEPS

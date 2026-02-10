@@ -22,6 +22,7 @@ const CS4_PHYSICS = CS2_PHYSICS * CS2_PHYSICS
 include("physics_utils.jl")
 include("physics_interpolation.jl")
 include("physics_kernels.jl")
+include("gamma_transition.jl")
 
 function perform_timestep_v2!(
     level,
@@ -34,7 +35,8 @@ function perform_timestep_v2!(
     domain_nx, domain_ny, domain_nz,
     wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
     timestep::Int, inlet_turbulence::Float32,
-    temporal_weight::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool
+    temporal_weight::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+    transition_active::Bool=false
 )
     backend = get_backend(f_in)
     n_blocks = length(level.active_block_coords)
@@ -60,6 +62,7 @@ function perform_timestep_v2!(
         f_out, f_in, f_post_collision,
         level.rho, vel_out, vel_in,
         level.obstacle, level.sponge, level.wall_dist,
+        level.gamma,
         level.neighbor_table,
         level.map_x, level.map_y, level.map_z,
         p_f, p_rho, p_vel, p_ptr,
@@ -79,6 +82,7 @@ function perform_timestep_v2!(
         Float32(temporal_weight),
         use_temporal_interp ? Int32(1) : Int32(0),
         sponge_blend_dist ? Int32(1) : Int32(0),
+        transition_active ? Int32(1) : Int32(0),
         ndrange=(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, n_blocks)
     )
     

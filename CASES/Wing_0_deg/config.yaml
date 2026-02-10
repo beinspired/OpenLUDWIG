@@ -179,6 +179,29 @@ advanced:
       enabled: false
       criterion: "vorticity"
       threshold: 0.1
+
+  # --------------------------------------------------------------------------
+  # GAMMA TRANSITION MODEL (γ-intermittency)
+  # --------------------------------------------------------------------------
+  # Predicts laminar-to-turbulent transition using the γ transport equation.
+  # Based on simplified Langtry-Menter correlations adapted for LBM-LES.
+  # γ=0 → laminar (no eddy viscosity), γ=1 → fully turbulent (full WALE).
+  transition:
+    enabled: false                # true = Activate γ transition model.
+
+    # Freestream turbulence intensity [%].
+    # Controls the critical Re_θ for onset. Lower Tu = later transition.
+    # Typical: wind tunnel 0.1-1.0%, flight 0.01-0.1%.
+    turbulence_intensity: 1.0
+
+    # Extra diffusion for γ transport stability (lattice units).
+    # Increase if γ field shows noise/oscillations.
+    gamma_diffusion: 0.001
+
+    # Initial γ value at simulation start:
+    #   1.0 = Start fully turbulent (safe, recommended for initial runs)
+    #   0.0 = Start fully laminar (realistic for transition studies)
+    gamma_initial: 0.0
   
   # --------------------------------------------------------------------------
   # DOMAIN SIZING

@@ -25,7 +25,12 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                          cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                          domain_nx::Int, domain_ny::Int, domain_nz::Int,
                          wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
-                         inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
+                         inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+                         transition_active::Bool=false,
+                         re_theta_c::Float32=Float32(803.73),
+                         f_length_val::Float32=Float32(100.0),
+                         tu_intensity::Float32=Float32(1.0),
+                         gamma_diffusion::Float32=Float32(0.001))
     
     if current_lvl > length(grids); return; end
     
@@ -47,7 +52,7 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
         copy_to_old!(level, f_in, vel_in)
     end
     
-    
+
     perform_timestep_v2!(level,
                          parent_f, parent_rho, parent_vel, parent_ptr,
                          parent_f_old, parent_rho_old, parent_vel_old,
@@ -57,11 +62,20 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                          cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                          domain_nx, domain_ny, domain_nz,
                          wall_model_active, c_wale_val, nu_sgs_bg,
-                         t_sub, inlet_turbulence, 0.0f0, use_temporal_interp, sponge_blend_dist)
-    
-    
+                         t_sub, inlet_turbulence, 0.0f0, use_temporal_interp, sponge_blend_dist,
+                         transition_active)
+
+    # Gamma transport step (after LBM so velocities are updated)
+    if transition_active
+        gamma_in  = iseven(t_sub) ? level.gamma : level.gamma_temp
+        gamma_out = iseven(t_sub) ? level.gamma_temp : level.gamma
+        perform_gamma_step!(level, gamma_out, gamma_in, vel_out,
+                            level.tau, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
+        # Copy result back so the "current" gamma is always accessible via level.gamma
+        copyto!(level.gamma, gamma_out)
+    end
+
     if has_children
-        
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub,
                                  f_out, level.rho, vel_out, level.block_pointer,
                                  level.f_old, level.rho_old, level.vel_old,
@@ -69,9 +83,9 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
-        
-        
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_active, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
+
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub + 1,
                                  f_out, level.rho, vel_out, level.block_pointer,
                                  level.f_old, level.rho_old, level.vel_old,
@@ -79,7 +93,8 @@ function recursive_step!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_active, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
     end
 end
 
@@ -90,7 +105,12 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                                   cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                   domain_nx::Int, domain_ny::Int, domain_nz::Int,
                                   wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
-                                  inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
+                                  inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+                                  transition_active::Bool=false,
+                                  re_theta_c::Float32=Float32(803.73),
+                                  f_length_val::Float32=Float32(100.0),
+                                  tu_intensity::Float32=Float32(1.0),
+                                  gamma_diffusion::Float32=Float32(0.001))
     
     if current_lvl > length(grids); return; end
     
@@ -119,8 +139,18 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                          cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                          domain_nx, domain_ny, domain_nz,
                          wall_model_active, c_wale_val, nu_sgs_bg,
-                         t_sub, inlet_turbulence, temporal_weight, use_temporal_interp, sponge_blend_dist)
-    
+                         t_sub, inlet_turbulence, temporal_weight, use_temporal_interp, sponge_blend_dist,
+                         transition_active)
+
+    # Gamma transport step (after LBM so velocities are updated)
+    if transition_active
+        gamma_in  = iseven(t_sub) ? level.gamma : level.gamma_temp
+        gamma_out = iseven(t_sub) ? level.gamma_temp : level.gamma
+        perform_gamma_step!(level, gamma_out, gamma_in, vel_out,
+                            level.tau, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
+        copyto!(level.gamma, gamma_out)
+    end
+
     if has_children
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub,
                                  f_out, level.rho, vel_out, level.block_pointer,
@@ -129,8 +159,9 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
-        
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_active, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
+
         recursive_step_temporal!(grids, current_lvl + 1, 2*t_sub + 1,
                                  f_out, level.rho, vel_out, level.block_pointer,
                                  level.f_old, level.rho_old, level.vel_old,
@@ -138,7 +169,8 @@ function recursive_step_temporal!(grids, current_lvl::Int, t_sub::Int,
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx, domain_ny, domain_nz,
                                  wall_model_active, c_wale_val, nu_sgs_bg,
-                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist)
+                                 inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                                 transition_active, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
     end
 end
 
@@ -146,9 +178,14 @@ function execute_timestep_batch!(grids, t_start::Int, batch_size::Int, u_curr::F
                                  cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                                  domain_nx::Int, domain_ny::Int, domain_nz::Int,
                                  wall_model_active::Bool, c_wale_val::Float32, nu_sgs_bg::Float32,
-                                 inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool)
+                                 inlet_turbulence::Float32, use_temporal_interp::Bool, sponge_blend_dist::Bool,
+                                 transition_active::Bool=false,
+                                 re_theta_c::Float32=Float32(803.73),
+                                 f_length_val::Float32=Float32(100.0),
+                                 tu_intensity::Float32=Float32(1.0),
+                                 gamma_diffusion::Float32=Float32(0.001))
     backend = get_backend(grids[1].rho)
-    
+
     for t_offset in 0:(batch_size-1)
         t = t_start + t_offset
         recursive_step!(grids, 1, t,
@@ -158,8 +195,9 @@ function execute_timestep_batch!(grids, t_start::Int, batch_size::Int, u_curr::F
                         cx_gpu, cy_gpu, cz_gpu, w_gpu, opp_gpu, mirror_y_gpu, mirror_z_gpu,
                         domain_nx, domain_ny, domain_nz,
                         wall_model_active, c_wale_val, nu_sgs_bg,
-                        inlet_turbulence, use_temporal_interp, sponge_blend_dist)
+                        inlet_turbulence, use_temporal_interp, sponge_blend_dist,
+                        transition_active, re_theta_c, f_length_val, tu_intensity, gamma_diffusion)
     end
-    
+
     KernelAbstractions.synchronize(backend)
 end

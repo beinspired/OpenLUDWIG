@@ -55,7 +55,8 @@ function export_merged_mesh_sync(t_step, grids, out_dir, backend)
         rho_cpu = Array(level.rho)
         vel_cpu = iseven(t_step) ? Array(level.vel_temp) : Array(level.vel)
         obs_cpu = Array(level.obstacle)
-        level_data[lvl] = (rho=rho_cpu, vel=vel_cpu, obs=obs_cpu, dx=Float32(level.dx))
+        gamma_cpu = Array(level.gamma)
+        level_data[lvl] = (rho=rho_cpu, vel=vel_cpu, obs=obs_cpu, gamma=gamma_cpu, dx=Float32(level.dx))
     end
     
     n_total = length(valid_blocks)
@@ -68,6 +69,7 @@ function export_merged_mesh_sync(t_step, grids, out_dir, backend)
     vel_mat = Matrix{Float32}(undef, 3, n_total * n_cells)
     obst_arr = Vector{UInt8}(undef, n_total * n_cells)
     level_arr = Vector{Int32}(undef, n_total * n_cells)
+    gamma_arr = Vector{Float32}(undef, n_total * n_cells)
     
     # 3. Construct unstructured grid
     Threads.@threads for i in 1:n_total
@@ -106,12 +108,14 @@ function export_merged_mesh_sync(t_step, grids, out_dir, backend)
             rho_arr[cidx] = data.rho[x, y, z, blk.b_idx]
             obst_arr[cidx] = data.obs[x, y, z, blk.b_idx] ? 0x01 : 0x00
             level_arr[cidx] = Int32(blk.lvl)
+            gamma_arr[cidx] = data.gamma[x, y, z, blk.b_idx]
         end
     end
     
     replace!(rho_arr, NaN32 => 0f0, Inf32 => 0f0, -Inf32 => 0f0)
     replace!(vel_mat, NaN32 => 0f0, Inf32 => 0f0, -Inf32 => 0f0)
-    
+    replace!(gamma_arr, NaN32 => 0f0, Inf32 => 0f0, -Inf32 => 0f0)
+
     filename = @sprintf("%s/flow_%06d", out_dir, t_step)
     try
         vtk_grid(filename, points, cells; compress=true, append=false) do vtk
@@ -120,6 +124,7 @@ function export_merged_mesh_sync(t_step, grids, out_dir, backend)
             if OUTPUT_VEL_MAG; vtk["VelocityMagnitude"] = sqrt.(vel_mat[1,:].^2 .+ vel_mat[2,:].^2 .+ vel_mat[3,:].^2); end
             if OUTPUT_OBSTACLE; vtk["Obstacle"] = obst_arr; end
             if OUTPUT_LEVEL; vtk["Level"] = level_arr; end
+            if TRANSITION_MODEL_ENABLED; vtk["Gamma"] = gamma_arr; end
         end
     catch e
         println("[Error] VTK write failed: $e")

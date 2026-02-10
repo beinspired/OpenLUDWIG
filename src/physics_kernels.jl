@@ -10,6 +10,7 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
     f_out, f_in, f_post_collision,
     rho_out, vel_out, vel_in,
     obstacle, sponge_arr, wall_dist_arr,
+    gamma_arr,
     neighbor_table,
     active_coords_x, active_coords_y, active_coords_z,
     parent_f, parent_rho, parent_vel, parent_ptr,
@@ -34,7 +35,8 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
     inlet_turbulence::Float32,
     temporal_weight::Float32,
     use_temporal_interp::Int32,
-    sponge_blend_distributions::Int32
+    sponge_blend_distributions::Int32,
+    transition_active::Int32
 )
     x, y, z, b_idx = @index(Global, NTuple)
     
@@ -294,8 +296,14 @@ PHYSICS_KERNELS.JL - Main LBM Stream-Collide Kernel
                 
                 
                 
+                # Apply gamma transition model: scale eddy viscosity by intermittency
+                if transition_active == Int32(1)
+                    gamma_local = gamma_arr[x, y, z, b_idx]
+                    nu_eddy = gamma_local * nu_eddy + (1.0f0 - gamma_local) * nu_sgs_background
+                end
+
                 nu_eddy = max(nu_eddy, nu_sgs_background)
-                
+
                 tau_turb = tau_molecular + nu_eddy * 3.0f0
                 omega = 1.0f0 / max(tau_turb, 0.500001f0)
 

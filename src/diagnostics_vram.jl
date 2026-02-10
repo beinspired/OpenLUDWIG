@@ -24,6 +24,7 @@ function print_vram_breakdown(grids)
     total_bouzidi = 0.0
     total_geom = 0.0
     total_conn = 0.0
+    total_transition = 0.0
     
     for (lvl, g) in enumerate(grids)
         n_blocks = length(g.active_block_coords)
@@ -65,13 +66,19 @@ function print_vram_breakdown(grids)
             bouz_total = 0.0
         end
         
-        level_total = dist_total + macro_total + geom_total + conn_total + bouz_total
-        
+        # Gamma transition model (gamma, gamma_temp)
+        trans_gamma = sizeof(g.gamma) / 1024^2
+        trans_gamma_temp = sizeof(g.gamma_temp) / 1024^2
+        trans_total = trans_gamma + trans_gamma_temp
+
+        level_total = dist_total + macro_total + geom_total + conn_total + bouz_total + trans_total
+
         total_dist += dist_total
         total_macro += macro_total
         total_bouzidi += bouz_total
         total_geom += geom_total
         total_conn += conn_total
+        total_transition += trans_total
         
         # Print Level Summary
         @printf("\n┌─ Level %d: %d blocks, %.2fM cells ─────────────────────────\n", 
@@ -80,8 +87,11 @@ function print_vram_breakdown(grids)
         @printf("│  Macroscopic:        %7.1f MB  (rho, u, u_temp)\n", macro_total)
         @printf("│  Geometry:           %7.1f MB  (obs, sponge, wall)\n", geom_total)
         if g.bouzidi_enabled
-            @printf("│  Bouzidi:            %7.1f MB  (%d boundary cells)\n", 
+            @printf("│  Bouzidi:            %7.1f MB  (%d boundary cells)\n",
                     bouz_total, g.n_boundary_cells)
+        end
+        if TRANSITION_MODEL_ENABLED
+            @printf("│  Transition (γ):     %7.1f MB  (gamma + gamma_temp)\n", trans_total)
         end
         @printf("│  ────────────────────────────────────────────────────────\n")
         @printf("│  Level Total:        %7.1f MB\n", level_total)
@@ -89,7 +99,7 @@ function print_vram_breakdown(grids)
     end
     
     # Grand Total Summary
-    grand_total = total_dist + total_macro + total_bouzidi + total_geom + total_conn
+    grand_total = total_dist + total_macro + total_bouzidi + total_geom + total_conn + total_transition
     
     println("\n" * "="^70)
     println("                          MEMORY SUMMARY")
@@ -102,8 +112,12 @@ function print_vram_breakdown(grids)
             total_geom, 100*total_geom/grand_total)
     @printf("  Connectivity:       %7.1f MB  (%5.1f%%)\n", 
             total_conn, 100*total_conn/grand_total)
-    @printf("  Bouzidi IBM:        %7.1f MB  (%5.1f%%)\n", 
+    @printf("  Bouzidi IBM:        %7.1f MB  (%5.1f%%)\n",
             total_bouzidi, 100*total_bouzidi/grand_total)
+    if TRANSITION_MODEL_ENABLED
+        @printf("  Transition (γ):     %7.1f MB  (%5.1f%%)\n",
+                total_transition, 100*total_transition/grand_total)
+    end
     println("-"^70)
     @printf("  TOTAL ALLOCATED:    %7.1f MB\n", grand_total)
     
@@ -128,7 +142,8 @@ function print_vram_breakdown(grids)
         macroscopic = total_macro,
         geometry = total_geom,
         connectivity = total_conn,
-        bouzidi = total_bouzidi
+        bouzidi = total_bouzidi,
+        transition = total_transition
     )
 end
 
