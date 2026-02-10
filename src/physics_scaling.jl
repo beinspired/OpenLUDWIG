@@ -106,7 +106,7 @@ function compute_domain_from_mesh(mesh_min::Tuple{Float64,Float64,Float64}, mesh
     print_re_analysis(re_number, ref_length, SURFACE_RESOLUTION, U_TARGET)
     
     domain_x = ref_length * (DOMAIN_UPSTREAM + DOMAIN_DOWNSTREAM) + mesh_extent[1]
-    domain_y = SYMMETRIC_ANALYSIS ? (mesh_max[2] + ref_length*DOMAIN_LATERAL) : (mesh_extent[2] + 2*ref_length*DOMAIN_LATERAL)
+    domain_y = SYMMETRIC_ANALYSIS ? (mesh_extent[2] + ref_length*DOMAIN_LATERAL) : (mesh_extent[2] + 2*ref_length*DOMAIN_LATERAL)
     domain_z = mesh_extent[3] + 2*ref_length*DOMAIN_HEIGHT
     
     dx_fine = ref_length / SURFACE_RESOLUTION
@@ -127,7 +127,7 @@ function compute_domain_from_mesh(mesh_min::Tuple{Float64,Float64,Float64}, mesh
     bx_max, by_max, bz_max = nx_coarse÷BLOCK_SIZE_CONFIG, ny_coarse÷BLOCK_SIZE_CONFIG, nz_coarse÷BLOCK_SIZE_CONFIG
     
     mesh_x = ref_length * DOMAIN_UPSTREAM
-    mesh_y = SYMMETRIC_ANALYSIS ? 0.0 : (domain_y/2 - mesh_center[2])
+    mesh_y = SYMMETRIC_ANALYSIS ? -mesh_min[2] : (domain_y/2 - mesh_center[2])
     mesh_z = domain_z/2 - mesh_center[3]
     mesh_offset = (mesh_x - mesh_min[1], mesh_y, mesh_z)
     
@@ -147,11 +147,37 @@ function compute_domain_from_mesh(mesh_min::Tuple{Float64,Float64,Float64}, mesh
                           mesh_center[2] + mesh_offset[2] + moment_center_rel[2]*ref_chord,
                           mesh_center[3] + mesh_offset[3] + moment_center_rel[3]*ref_chord)
     
+    # Verify domain enclosure: placed geometry must be fully inside the domain
+    placed_min = (mesh_min[1] + mesh_offset[1], mesh_min[2] + mesh_offset[2], mesh_min[3] + mesh_offset[3])
+    placed_max = (mesh_max[1] + mesh_offset[1], mesh_max[2] + mesh_offset[2], mesh_max[3] + mesh_offset[3])
+
+    println("\n[Domain] Mesh Placement:")
+    @printf("  STL bounds:    X[%.3f, %.3f]  Y[%.3f, %.3f]  Z[%.3f, %.3f]\n",
+            mesh_min[1], mesh_max[1], mesh_min[2], mesh_max[2], mesh_min[3], mesh_max[3])
+    @printf("  Mesh offset:   (%.3f, %.3f, %.3f)\n", mesh_offset[1], mesh_offset[2], mesh_offset[3])
+    @printf("  Placed bounds: X[%.3f, %.3f]  Y[%.3f, %.3f]  Z[%.3f, %.3f]\n",
+            placed_min[1], placed_max[1], placed_min[2], placed_max[2], placed_min[3], placed_max[3])
+    @printf("  Domain:        X[0, %.3f]  Y[0, %.3f]  Z[0, %.3f]\n", domain_x, domain_y, domain_z)
+
+    enclosure_ok = true
+    for (axis, label) in zip(1:3, ("X", "Y", "Z"))
+        dmax = (domain_x, domain_y, domain_z)[axis]
+        if placed_min[axis] < -1e-6
+            @printf("  *** WARNING: Geometry extends below domain in %s! placed_min=%+.4f < 0\n", label, placed_min[axis])
+            enclosure_ok = false
+        end
+        if placed_max[axis] > dmax + 1e-6
+            @printf("  *** WARNING: Geometry extends above domain in %s! placed_max=%+.4f > %.4f\n", label, placed_max[axis], dmax)
+            enclosure_ok = false
+        end
+    end
+    println(enclosure_ok ? "  [OK] Geometry fully enclosed by domain." : "  [FAIL] Geometry NOT fully enclosed! Check domain/offset parameters.")
+
     bytes_per_cell = TEMPORAL_INTERPOLATION ? 220 : 160
     total_cells_est = bx_max * by_max * bz_max * BLOCK_SIZE_CONFIG^3
     for lvl in 2:num_levels; total_cells_est += Int(ceil(total_cells_est * 0.08)); end
     estimated_memory_gb = total_cells_est * bytes_per_cell / 1e9
-    
+
     p = DOMAIN_PARAMS
     p.initialized = true
     p.num_levels = num_levels
